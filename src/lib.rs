@@ -1,6 +1,6 @@
 extern crate cfg_if;
-extern crate wasm_bindgen;
 extern crate js_sys;
+extern crate wasm_bindgen;
 
 mod utils;
 
@@ -20,7 +20,7 @@ pub type Car = Entity;
 pub struct Game {
     obstacles: Vec<Obstacle>,
     car: Car,
-    render: Vec<u8>
+    render: Vec<u8>,
 }
 
 fn in_distance(a: u8, b: u8) -> bool {
@@ -34,7 +34,11 @@ fn in_distance(a: u8, b: u8) -> bool {
 #[wasm_bindgen]
 impl Game {
     pub fn new() -> Game {
-        Game { obstacles: Vec::new(), car: Car { x: 50, y: 0 }, render: vec![0; 256] }
+        Game {
+            obstacles: Vec::new(),
+            car: Car { x: 50, y: 0 },
+            render: vec![0; 256],
+        }
     }
 
     pub fn update_obstacles(&mut self) {
@@ -69,7 +73,7 @@ impl Game {
     pub fn has_hit(&mut self) -> bool {
         for obstacle in self.obstacles.iter() {
             if in_distance(obstacle.x, self.car.x) && in_distance(obstacle.y, self.car.y) {
-                return true
+                return true;
             }
         }
         false
