@@ -1,6 +1,5 @@
 /target
 **/*.rs.bk
-Cargo.lock
 /pkg
 /www/node_modules
 /www/dist
