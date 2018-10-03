@@ -4,101 +4,155 @@ extern crate wasm_bindgen;
 
 mod utils;
 
+use std::collections::HashSet;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-#[derive(Clone, Copy)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone)]
 pub struct Entity {
-    x: u8,
-    y: u8,
+    pub x: u8,
+    pub y: u8,
 }
 
-pub type Obstacle = Entity;
-pub type Car = Entity;
+type Invader = Entity;
+type Tank = Entity;
+type Projectile = Entity;
 
 #[wasm_bindgen]
 pub struct Game {
-    obstacles: Vec<Obstacle>,
-    car: Car,
-    render: Vec<u8>,
+    invaders: Vec<Invader>,
+    tank: Tank,
+    projectiles: Vec<Projectile>,
+    render_array: Vec<u8>,
 }
 
-fn in_distance(a: u8, b: u8) -> bool {
+#[wasm_bindgen]
+pub struct Render {
+    pub render_ptr: *const u8,
+    pub invaders_count: u8,
+    pub projectiles_count: u8,
+}
+
+fn in_distance(a: u8, b: u8, dist: u8) -> bool {
     if a > b {
-        a - b < 5
+        a - b < dist
     } else {
-        b - a < 5
+        b - a < dist
     }
+}
+
+fn collide(a: &Entity, b: &Entity) -> bool {
+    in_distance(a.x, b.x, 4) && in_distance(a.y, b.y, 4)
 }
 
 #[wasm_bindgen]
 impl Game {
     pub fn new() -> Game {
         Game {
-            obstacles: Vec::new(),
-            car: Car { x: 50, y: 0 },
-            render: vec![0; 256],
+            invaders: Vec::new(),
+            tank: Tank { x: 50, y: 10 },
+            projectiles: Vec::new(),
+            render_array: vec![0; 256],
         }
     }
 
-    pub fn update_obstacles(&mut self) {
-        for obstacle in self.obstacles.iter_mut() {
-            obstacle.y -= 1;
+    pub fn update_invaders(&mut self) {
+        for invader in self.invaders.iter_mut() {
+            invader.y -= 1;
         }
-        self.obstacles.retain(|o| o.y > 0);
     }
 
-    pub fn add_obstacle(&mut self) {
-        let obstacle = Obstacle {
+    pub fn add_invader(&mut self) {
+        let invader = Invader {
             x: (js_sys::Math::random() * 100.0) as u8,
             y: 100,
         };
 
-        self.obstacles.push(obstacle);
+        self.invaders.push(invader);
     }
 
-    pub fn update_car(&mut self, delta_x: u8, delta_y: u8) {
-        let new_x = self.car.x + delta_x;
-        let new_y = self.car.y + delta_y;
+    pub fn update_projectiles(&mut self) {
+        for projectile in self.projectiles.iter_mut() {
+            projectile.y += 1;
+        }
+        self.projectiles.retain(|o| o.y <= 100);
+    }
+
+    pub fn collide(&mut self) {
+        let mut gone_invaders = HashSet::new();
+        let mut gone_projectiles = HashSet::new();
+
+        for invader in self.invaders.iter() {
+            for projectile in self.projectiles.iter() {
+                if collide(invader, projectile) {
+                    gone_invaders.insert(invader.clone());
+                    gone_projectiles.insert(projectile.clone());
+                }
+            }
+        }
+
+        self.invaders.retain(|i| !gone_invaders.contains(i));
+        self.projectiles.retain(|p| !gone_projectiles.contains(p));
+    }
+
+    pub fn fire(&mut self) {
+        if self.projectiles.len() < 3 {
+            let projectile = Projectile {
+                x: self.tank.x,
+                y: self.tank.y,
+            };
+
+            self.projectiles.push(projectile);
+        }
+    }
+
+    pub fn update_tank(&mut self, delta_x: u8, delta_y: u8) {
+        let new_x = self.tank.x + delta_x;
+        let new_y = self.tank.y + delta_y;
 
         if new_x < 100 && new_x > 0 {
-            self.car.x = new_x;
+            self.tank.x = new_x;
         }
 
         if new_y < 100 && new_y > 0 {
-            self.car.y = new_y;
+            self.tank.y = new_y;
         }
     }
 
-    pub fn has_hit(&mut self) -> bool {
-        for obstacle in self.obstacles.iter() {
-            if in_distance(obstacle.x, self.car.x) && in_distance(obstacle.y, self.car.y) {
+    pub fn is_over(&mut self) -> bool {
+        for invader in self.invaders.iter() {
+            if invader.y == 0 {
                 return true;
             }
         }
         false
     }
 
-    pub fn obstacles(&mut self) -> *const u8 {
+    pub fn render(&mut self) -> Render {
         let mut i = 0;
-        for obstacle in self.obstacles.iter() {
-            self.render[i] = obstacle.x;
+
+        self.render_array[i] = self.tank.x;
+        i += 1;
+        self.render_array[i] = self.tank.y;
+        i += 1;
+
+        for invader in self.invaders.iter() {
+            self.render_array[i] = invader.x;
             i += 1;
-            self.render[i] = obstacle.y;
+            self.render_array[i] = invader.y;
             i += 1;
         }
-        self.render.as_ptr()
-    }
 
-    pub fn get_obstacles_count(&self) -> u8 {
-        self.obstacles.len() as u8
-    }
+        for projectile in self.projectiles.iter() {
+            self.render_array[i] = projectile.x;
+            i += 1;
+            self.render_array[i] = projectile.y;
+            i += 1;
+        }
 
-    pub fn car_x(&self) -> u8 {
-        self.car.x
-    }
-
-    pub fn car_y(&self) -> u8 {
-        self.car.y
+        Render {
+            render_ptr: self.render_array.as_ptr(),
+            invaders_count: self.invaders.len() as u8,
+            projectiles_count: self.projectiles.len() as u8,
+        }
     }
 }
